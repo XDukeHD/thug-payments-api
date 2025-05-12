@@ -423,19 +423,40 @@ function extractPixInfo(response) {
   
   if (response.qr_codes && response.qr_codes.length > 0) {
     const qrCodeData = response.qr_codes[0];
-    qrCode = qrCodeData.text || qrCodeData.content || null;
+    qrCode = qrCodeData.text || null;
     expirationDate = qrCodeData.expiration_date || null;
     
     if (qrCodeData.links && qrCodeData.links.length > 0) {
-      const imageLink = qrCodeData.links.find(link => 
-        (link.media === 'image/png' || link.type === 'image/png') && 
-        (link.rel === 'QRCODE' || link.rel === 'QR_CODE' || link.rel === 'qrcode')
+      const pngLink = qrCodeData.links.find(link => 
+        link.rel === 'QRCODE.PNG' || 
+        (link.media === 'image/png' && 
+         (link.rel === 'QRCODE' || link.rel === 'QR_CODE' || link.rel === 'qrcode'))
       );
-      if (imageLink) {
-        qrCodeImage = imageLink.href;
+      
+      if (pngLink) {
+        qrCodeImage = pngLink.href;
       }
     }
   }
+  
+  if (qrCodeImage === null && response.qr_codes && response.qr_codes.length > 0) {
+    const qrCodeData = response.qr_codes[0];
+    if (qrCodeData.links && qrCodeData.links.length > 0) {
+      const anyImageLink = qrCodeData.links.find(link => 
+        link.media === 'image/png' || link.href.includes('.png') || link.href.includes('/png')
+      );
+      
+      if (anyImageLink) {
+        qrCodeImage = anyImageLink.href;
+      }
+    }
+  }
+  
+  console.log('QR Code response:', {
+    qrCode: qrCode ? 'Present (length: ' + qrCode.length + ')' : 'Not found',
+    qrCodeImage: qrCodeImage || 'Not found',
+    expirationDate: expirationDate || 'Not found'
+  });
   
   return {
     qrCode,
