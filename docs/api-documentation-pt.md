@@ -5,8 +5,9 @@
 1. [Introdução](#introdução)
 2. [Autenticação](#autenticação)
 3. [Endpoints da API](#endpoints-da-api)
-   - [Pagamentos Padrão](#pagamentos-padrão)
+   - [Pagamentos com Cartão de Crédito](#pagamentos-com-cartão-de-crédito)
    - [Pagamentos PIX](#pagamentos-pix)
+   - [Checkout PagBank](#checkout-pagbank)
    - [Gerenciamento de Status](#gerenciamento-de-status)
    - [Pagamentos por Usuário](#pagamentos-por-usuário)
 4. [Webhooks](#webhooks)
@@ -47,13 +48,13 @@ Falha na autenticação resultará em uma resposta 401 Unauthorized:
 
 ## Endpoints da API
 
-### Pagamentos Padrão
+### Pagamentos com Cartão de Crédito
 
-#### Criar um Pagamento
+#### Criar um Pagamento com Cartão de Crédito
 
-Cria um novo pagamento usando métodos de pagamento padrão (cartão de crédito, etc).
+Cria um novo pagamento usando o método de cartão de crédito.
 
-**Endpoint:** `POST /create`
+**Endpoint:** `POST /credit-card`
 
 **Cabeçalhos da Requisição:**
 - Content-Type: application/json
@@ -68,20 +69,28 @@ Cria um novo pagamento usando métodos de pagamento padrão (cartão de crédito
   "customerEmail": "joao@exemplo.com",
   "customerDocument": "123.456.789-01",
   "customerUserId": "usuario123",
-  "paymentMethod": "CREDIT_CARD"
+  "card": {
+    "number": "4111111111111111",
+    "expMonth": "12",
+    "expYear": "2025",
+    "securityCode": "123",
+    "holderName": "JOAO SILVA"
+  },
+  "installments": 1
 }
 ```
 
 **Campos Obrigatórios:**
 - `amount`: Valor do pagamento (numérico, maior que 0)
 - `customerUserId`: Identificador único do cliente no seu sistema
+- `card`: Objeto com informações do cartão contendo todos os campos requeridos
 
 **Campos Opcionais:**
 - `description`: Descrição do pagamento
 - `customerName`: Nome completo do cliente
 - `customerEmail`: Endereço de email do cliente
 - `customerDocument`: Documento de identificação fiscal do cliente (CPF/CNPJ)
-- `paymentMethod`: Método de pagamento (padrão é "CREDIT_CARD")
+- `installments`: Número de parcelas (padrão: 1)
 
 **Exemplo de Resposta (201 Created):**
 ```json
@@ -91,7 +100,8 @@ Cria um novo pagamento usando métodos de pagamento padrão (cartão de crédito
     "referenceId": "550e8400-e29b-41d4-a716-446655440000",
     "amount": 100.50,
     "status": "PENDING",
-    "paymentUrl": "https://pagbank.com/pay/550e8400-e29b-41d4-a716-446655440000"
+    "chargeId": "CHARGE_123456789",
+    "receiptUrl": "https://sandbox.api.pagseguro.com/charges/CHARGE_123456789/receipt"
   }
 }
 ```
@@ -102,7 +112,7 @@ Cria um novo pagamento usando métodos de pagamento padrão (cartão de crédito
 
 Cria um novo pagamento PIX.
 
-**Endpoint:** `POST /pix/create`
+**Endpoint:** `POST /pix`
 
 **Cabeçalhos da Requisição:**
 - Content-Type: application/json
@@ -140,12 +150,69 @@ Cria um novo pagamento PIX.
     "referenceId": "550e8400-e29b-41d4-a716-446655440000",
     "amount": 100.50,
     "status": "PENDING",
+    "orderId": "ORDER_123456789",
     "pix": {
-      "qrCode": "00020101021226930014br.gov.bcb.pix2571api.itau/pix/qr/v2/cobv/...",
-      "qrCodeImage": "https://pagbank.com/pix-qrcode/image.png",
-      "copyPaste": "00020101021226930014br.gov.bcb.pix2571api.itau...",
-      "expirationDate": "2025-05-12T23:09:00Z"
+      "qrCode": "00020101021226850014br.gov.bcb.pix2563api-h.pagseguro.com/pix/v2/...",
+      "qrCodeImage": "https://sandbox.api.pagseguro.com/qrcode/QRCO_123456789/png",
+      "copyPaste": "00020101021226850014br.gov.bcb.pix2563...",
+      "expirationDate": "2025-05-13T01:57:53.000-03:00"
     }
+  }
+}
+```
+
+### Checkout PagBank
+
+#### Criar uma Sessão de Checkout PagBank
+
+Cria uma sessão de checkout que redireciona o cliente para a página de pagamento do PagBank com várias opções de pagamento.
+
+**Endpoint:** `POST /checkout`
+
+**Cabeçalhos da Requisição:**
+- Content-Type: application/json
+- x-system-key: sua_chave_segura_de_sistema_aqui
+
+**Corpo da Requisição:**
+```json
+{
+  "amount": 100.50,
+  "description": "Compra de produto",
+  "customerName": "João Silva",
+  "customerEmail": "joao@exemplo.com",
+  "customerDocument": "123.456.789-01",
+  "customerUserId": "usuario123",
+  "enabledTypes": ["CREDIT_CARD", "DEBIT_CARD", "BOLETO", "PIX"],
+  "defaultType": "CREDIT_CARD",
+  "expiresAt": "2025-05-13T23:59:59-03:00",
+  "redirectUrl": "https://sua-loja.com/pagamento/confirmacao"
+}
+```
+
+**Campos Obrigatórios:**
+- `amount`: Valor do pagamento (numérico, maior que 0)
+- `customerUserId`: Identificador único do cliente no seu sistema
+
+**Campos Opcionais:**
+- `description`: Descrição do pagamento
+- `customerName`: Nome completo do cliente
+- `customerEmail`: Endereço de email do cliente
+- `customerDocument`: Documento de identificação fiscal do cliente (CPF/CNPJ)
+- `enabledTypes`: Array de métodos de pagamento habilitados (padrão são todos os métodos disponíveis)
+- `defaultType`: Método de pagamento padrão selecionado (padrão é "CREDIT_CARD")
+- `expiresAt`: Data ISO para expiração do checkout (padrão é 24 horas após a criação)
+- `redirectUrl`: URL para redirecionamento após o pagamento (padrão é a URL configurada no seu config.json)
+
+**Exemplo de Resposta (201 Created):**
+```json
+{
+  "success": true,
+  "payment": {
+    "referenceId": "550e8400-e29b-41d4-a716-446655440000",
+    "amount": 100.50,
+    "status": "PENDING",
+    "checkoutId": "CHECKOUT_123456789",
+    "checkoutUrl": "https://sandbox.pagseguro.com.br/checkout/123456789"
   }
 }
 ```
@@ -179,7 +246,7 @@ Verifica o status de um pagamento específico.
     "customerDocument": "123.456.789-01",
     "customerUserId": "usuario123",
     "paymentMethod": "CREDIT_CARD",
-    "paymentUrl": "https://pagbank.com/pay/550e8400-e29b-41d4-a716-446655440000",
+    "paymentUrl": "https://sandbox.api.pagseguro.com/charges/CHARGE_123456789/receipt",
     "createdAt": "2025-05-11T21:09:00.000Z",
     "updatedAt": "2025-05-11T21:15:00.000Z"
   }
@@ -215,7 +282,7 @@ Recupera todos os registros de pagamento com paginação.
       "customerDocument": "123.456.789-01",
       "customerUserId": "usuario123",
       "paymentMethod": "CREDIT_CARD",
-      "paymentUrl": "https://pagbank.com/pay/550e8400-e29b-41d4-a716-446655440000",
+      "paymentUrl": "https://sandbox.api.pagseguro.com/charges/CHARGE_123456789/receipt",
       "createdAt": "2025-05-11T21:09:00.000Z",
       "updatedAt": "2025-05-11T21:15:00.000Z"
     },
@@ -229,7 +296,7 @@ Recupera todos os registros de pagamento com paginação.
       "customerDocument": "234.567.890-12",
       "customerUserId": "usuario456",
       "paymentMethod": "PIX",
-      "paymentUrl": "https://pagbank.com/pix-qrcode/image.png",
+      "paymentUrl": "https://sandbox.api.pagseguro.com/qrcode/QRCO_987654321/png",
       "createdAt": "2025-05-11T22:30:00.000Z",
       "updatedAt": "2025-05-11T22:30:00.000Z"
     }
@@ -270,7 +337,7 @@ Recupera registros de pagamento filtrados por status.
       "customerDocument": "123.456.789-01",
       "customerUserId": "usuario123",
       "paymentMethod": "CREDIT_CARD",
-      "paymentUrl": "https://pagbank.com/pay/550e8400-e29b-41d4-a716-446655440000",
+      "paymentUrl": "https://sandbox.api.pagseguro.com/charges/CHARGE_123456789/receipt",
       "createdAt": "2025-05-11T21:09:00.000Z",
       "updatedAt": "2025-05-11T21:15:00.000Z"
     }
@@ -312,7 +379,7 @@ Recupera registros de pagamento para um usuário específico.
       "customerDocument": "123.456.789-01",
       "customerUserId": "usuario123",
       "paymentMethod": "CREDIT_CARD",
-      "paymentUrl": "https://pagbank.com/pay/550e8400-e29b-41d4-a716-446655440000",
+      "paymentUrl": "https://sandbox.api.pagseguro.com/charges/CHARGE_123456789/receipt",
       "createdAt": "2025-05-11T21:09:00.000Z",
       "updatedAt": "2025-05-11T21:15:00.000Z"
     }
@@ -396,10 +463,10 @@ Status brutos do PagBank são mapeados para esses status padronizados para consi
 
 ## Exemplos de Requisições
 
-### Criar um Pagamento Padrão (com cURL)
+### Criar um Pagamento com Cartão de Crédito (com cURL)
 
 ```bash
-curl -X POST http://localhost:3000/api/payments/create \
+curl -X POST http://localhost:3000/api/payments/credit-card \
   -H "Content-Type: application/json" \
   -H "x-system-key: sua_chave_segura_de_sistema_aqui" \
   -d '{
@@ -409,14 +476,20 @@ curl -X POST http://localhost:3000/api/payments/create \
     "customerEmail": "joao@exemplo.com",
     "customerDocument": "123.456.789-01",
     "customerUserId": "usuario123",
-    "paymentMethod": "CREDIT_CARD"
+    "card": {
+      "number": "4111111111111111",
+      "expMonth": "12",
+      "expYear": "2025",
+      "securityCode": "123",
+      "holderName": "JOAO SILVA"
+    }
   }'
 ```
 
 ### Criar um Pagamento PIX (com cURL)
 
 ```bash
-curl -X POST http://localhost:3000/api/payments/pix/create \
+curl -X POST http://localhost:3000/api/payments/pix \
   -H "Content-Type: application/json" \
   -H "x-system-key: sua_chave_segura_de_sistema_aqui" \
   -d '{
@@ -427,6 +500,23 @@ curl -X POST http://localhost:3000/api/payments/pix/create \
     "customerDocument": "123.456.789-01",
     "customerUserId": "usuario123",
     "expirationHours": 24
+  }'
+```
+
+### Criar um Checkout PagBank (com cURL)
+
+```bash
+curl -X POST http://localhost:3000/api/payments/checkout \
+  -H "Content-Type: application/json" \
+  -H "x-system-key: sua_chave_segura_de_sistema_aqui" \
+  -d '{
+    "amount": 100.50,
+    "description": "Compra de produto",
+    "customerName": "João Silva",
+    "customerEmail": "joao@exemplo.com",
+    "customerDocument": "123.456.789-01",
+    "customerUserId": "usuario123",
+    "enabledTypes": ["CREDIT_CARD", "PIX"]
   }'
 ```
 
