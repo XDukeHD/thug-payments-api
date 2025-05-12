@@ -1,3 +1,4 @@
 config.json
-./database/payments.db 
+database/payments.db 
+/database/payments.db
 node_modules/
