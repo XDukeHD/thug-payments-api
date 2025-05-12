@@ -1,0 +1,3 @@
+config.json
+./database/payments.db 
+node_modules/

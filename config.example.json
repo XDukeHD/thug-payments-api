@@ -1,0 +1,13 @@
+{
+    "system_key": "Your System Key",
+    "pagbank": {
+      "token": "Your PagBank Token",
+      "email": "Your PagBank Email"
+    },
+    "database": {
+      "path": "./database/payments-example.db"
+    },
+    "server": {
+      "port": 3000
+    }
+  }
