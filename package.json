@@ -9,7 +9,12 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "XDuke - Túlio Cadilhac",
-  "license": "ISC",
+  "license": "MIT",
+  "private": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/XDukeHD/thug-payments-api.git"
+  },
   "keywords": [
     "payment",
     "pagbank",
