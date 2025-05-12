@@ -3,23 +3,24 @@ const config = require('../../config.json');
 
 class PagBankService {
   constructor() {
-    this.apiUrl = 'https://api.pagbank.com.br';
+    const isSandbox = config.pagbank.environment === 'sandbox';
+    this.apiUrl = isSandbox ? 'https://sandbox.api.pagseguro.com' : 'https://api.pagseguro.com';
     this.token = config.pagbank.token;
-    this.email = config.pagbank.email;
     
     this.api = axios.create({
       baseURL: this.apiUrl,
       headers: {
         'Authorization': `Bearer ${this.token}`,
         'Content-Type': 'application/json',
-        'x-api-version': '4.0'
-      }
+        'Accept': 'application/json'
+      },
+      timeout: 30000
     });
   }
 
-  async createCharge(data) {
+  async createCreditCardCharge(data) {
     try {
-      const payload = this._formatChargePayload(data);
+      const payload = this._formatCreditCardPayload(data);
       const response = await this.api.post('/charges', payload);
       return response.data;
     } catch (error) {
@@ -29,8 +30,18 @@ class PagBankService {
   
   async createPixCharge(data) {
     try {
-      const payload = this._formatPixChargePayload(data);
-      const response = await this.api.post('/charges', payload);
+      const payload = this._formatPixPayload(data);
+      const response = await this.api.post('/orders', payload);
+      return response.data;
+    } catch (error) {
+      this._handleError(error);
+    }
+  }
+
+  async createCheckout(data) {
+    try {
+      const payload = this._formatCheckoutPayload(data);
+      const response = await this.api.post('/checkouts', payload);
       return response.data;
     } catch (error) {
       this._handleError(error);
@@ -46,7 +57,16 @@ class PagBankService {
     }
   }
 
-  _formatChargePayload(data) {
+  async getOrderStatus(orderId) {
+    try {
+      const response = await this.api.get(`/orders/${orderId}`);
+      return response.data;
+    } catch (error) {
+      this._handleError(error);
+    }
+  }
+
+  _formatCreditCardPayload(data) {
     return {
       reference_id: data.referenceId,
       description: data.description,
@@ -55,13 +75,25 @@ class PagBankService {
         currency: "BRL"
       },
       payment_method: {
-        type: data.paymentMethod || "CREDIT_CARD",
+        type: "CREDIT_CARD",
         installments: data.installments || 1,
-        capture: true
+        capture: true,
+        card: {
+          number: data.card.number,
+          exp_month: data.card.expMonth,
+          exp_year: data.card.expYear,
+          security_code: data.card.securityCode,
+          holder: {
+            name: data.card.holderName
+          }
+        }
       },
       notification_urls: [
-        data.notificationUrl || "https://your-domain.com/webhook/pagbank"
+        data.notificationUrl || `${config.webhook.baseUrl}/api/payments/webhook`
       ],
+      metadata: {
+        customer_user_id: data.customerUserId
+      },
       customer: {
         name: data.customerName,
         email: data.customerEmail,
@@ -70,42 +102,92 @@ class PagBankService {
     };
   }
   
-  _formatPixChargePayload(data) {
+  _formatPixPayload(data) {
     return {
       reference_id: data.referenceId,
-      description: data.description,
-      amount: {
-        value: parseInt((data.amount * 100).toFixed(0)),
-        currency: "BRL"
-      },
-      payment_method: {
-        type: "PIX",
-        expiration_date: data.expirationDate || this._getDefaultPixExpirationDate()
-      },
-      notification_urls: [
-        data.notificationUrl || "https://your-domain.com/webhook/pagbank"
-      ],
       customer: {
         name: data.customerName,
         email: data.customerEmail,
         tax_id: data.customerDocument
-      }
+      },
+      metadata: {
+        customer_user_id: data.customerUserId
+      },
+      items: [
+        {
+          name: data.description || "Payment",
+          quantity: 1,
+          unit_amount: parseInt((data.amount * 100).toFixed(0))
+        }
+      ],
+      qr_codes: [
+        {
+          amount: {
+            value: parseInt((data.amount * 100).toFixed(0))
+          },
+          expiration_date: data.expirationDate || this._getDefaultPixExpirationDate()
+        }
+      ],
+      notification_urls: [
+        data.notificationUrl || `${config.webhook.baseUrl}/api/payments/webhook`
+      ]
+    };
+  }
+  
+  _formatCheckoutPayload(data) {
+    return {
+      reference_id: data.referenceId,
+      customer: {
+        name: data.customerName,
+        email: data.customerEmail,
+        tax_id: data.customerDocument
+      },
+      metadata: {
+        customer_user_id: data.customerUserId
+      },
+      items: [
+        {
+          name: data.description || "Payment",
+          quantity: 1,
+          unit_amount: parseInt((data.amount * 100).toFixed(0))
+        }
+      ],
+      payment_methods: {
+        enabled_types: data.enabledTypes || ["CREDIT_CARD", "DEBIT_CARD", "BOLETO", "PIX"],
+        default_type: data.defaultType || "CREDIT_CARD"
+      },
+      expires_at: data.expiresAt || this._getDefaultExpirationDate(),
+      notification_urls: [
+        data.notificationUrl || `${config.webhook.baseUrl}/api/payments/webhook`
+      ],
+      redirect_url: data.redirectUrl || config.webhook.redirectUrl
     };
   }
   
   _getDefaultPixExpirationDate() {
-    // Set default expiration to 24 hours from now
+    const expirationDate = new Date();
+    expirationDate.setHours(expirationDate.getHours() + 24);
+    return expirationDate.toISOString();
+  }
+  
+  _getDefaultExpirationDate() {
     const expirationDate = new Date();
     expirationDate.setHours(expirationDate.getHours() + 24);
     return expirationDate.toISOString();
   }
 
   _handleError(error) {
-    if (error.response) {
+    if (error.code === 'ENOTFOUND') {
+      console.error(`Network error connecting to PagBank API (${this.apiUrl}):`, error.message);
+      throw new Error(`Network connection error. Unable to reach PagBank service at ${this.apiUrl}`);
+    } else if (error.response) {
+      console.error('PagBank API error:', error.response.status, JSON.stringify(error.response.data));
       throw new Error(`PagBank API error: ${error.response.status} - ${JSON.stringify(error.response.data)}`);
     } else if (error.request) {
+      console.error('PagBank API request error (no response):', error.message);
       throw new Error(`PagBank API request error: ${error.message}`);
     } else {
+      console.error('Unexpected error during PagBank API call:', error.message);
       throw new Error(`PagBank API unexpected error: ${error.message}`);
     }
   }
