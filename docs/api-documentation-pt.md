@@ -24,7 +24,7 @@ A API Thug Payments é um sistema robusto de processamento de pagamentos constru
 http://seu-dominio.com/api/payments
 ```
 
-Substitua `seu-dominio.com` pelo seu domínio real ou endereço IP e porta (ex: `localhost:3000` ou `igoshtdowncool.com`)
+Substitua `seu-dominio.com` pelo seu domínio real ou endereço IP e porta (ex: `localhost:3000` ou `ighostdowncool.com`)
 
 ## Autenticação
 
