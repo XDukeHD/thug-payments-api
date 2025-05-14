@@ -6,9 +6,16 @@
       "environment": "sandbox"
     },
     "webhook": {
-    "baseUrl": "https://your-domain.com",
-    "redirectUrl": "https://your-domain.com/payment/confirmation"
+      "baseUrl": "https://your-domain.com",
+      "redirectUrl": "https://your-domain.com/payment/confirmation",
+      "notificationsPath": "/api/payments/notifications"
     },
+    "clientWebhook": {
+    "url": "https://ighostdowncool.com/api/payments/notifications",
+    "enabled": true,
+    "retryCount": 3,
+    "retryDelay": 60000
+  },
     "database": {
       "path": "./database/payments-example.db"
     },

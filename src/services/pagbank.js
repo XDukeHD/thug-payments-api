@@ -16,6 +16,8 @@ class PagBankService {
       },
       timeout: 30000
     });
+    
+    this.notificationUrl = `${config.webhook.baseUrl}/api/payments/notifications`;
   }
 
   async createCreditCardCharge(data) {
@@ -89,7 +91,7 @@ class PagBankService {
         }
       },
       notification_urls: [
-        data.notificationUrl || `${config.webhook.baseUrl}/api/payments/webhook`
+        data.notificationUrl || this.notificationUrl
       ],
       metadata: {
         customer_user_id: data.customerUserId
@@ -129,7 +131,7 @@ class PagBankService {
         }
       ],
       notification_urls: [
-        data.notificationUrl || `${config.webhook.baseUrl}/api/payments/webhook`
+        data.notificationUrl || this.notificationUrl
       ]
     };
   }
@@ -158,7 +160,7 @@ class PagBankService {
       },
       expires_at: data.expiresAt || this._getDefaultExpirationDate(),
       notification_urls: [
-        data.notificationUrl || `${config.webhook.baseUrl}/api/payments/webhook`
+        data.notificationUrl || this.notificationUrl
       ],
       redirect_url: data.redirectUrl || config.webhook.redirectUrl
     };

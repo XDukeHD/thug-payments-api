@@ -1,5 +1,6 @@
 const Payment = require('../models/payment');
 const pagbankService = require('../services/pagbank');
+const notificationService = require('../services/notificationService');
 
 class PaymentController {
   async createCreditCardPayment(req, res) {
@@ -408,10 +409,178 @@ class PaymentController {
       
       await Payment.updateStatus(reference_id, status);
       
+      const payment = await Payment.getByReferenceId(reference_id);
+      
+      if (payment) {
+        const paymentForNotification = {
+          referenceId: payment.reference_id,
+          transactionId: payment.pagbank_id,
+          amount: payment.amount,
+          description: payment.description,
+          customerUserId: payment.customer_user_id,
+          paymentMethod: payment.payment_method,
+          updatedAt: new Date().toISOString()
+        };
+        
+        notificationService.sendStatusUpdate(reference_id, status, paymentForNotification)
+          .catch(err => console.error('Error sending client notification:', err.message));
+      }
+      
       res.json({ success: true });
     } catch (error) {
       console.error('Error processing webhook:', error);
       res.status(500).json({ error: 'Failed to process webhook', message: error.message });
+    }
+  }
+  
+  async notificationHandler(req, res) {
+    try {
+      console.log('PagBank notification received:', JSON.stringify(req.body));
+      
+      const notification = req.body;
+      
+      if (!notification || !notification.data || !notification.data.id) {
+        console.warn('Invalid notification format:', JSON.stringify(notification));
+        return res.status(400).json({ 
+          error: 'Invalid notification format',
+          message: 'The notification does not contain required data'
+        });
+      }
+      
+      const notificationType = notification.event.type || 'unknown';
+      const resourceId = notification.data.id;
+      let paymentData;
+      
+      try {
+        if (resourceId.startsWith('ORDE_') || notificationType.includes('ORDER')) {
+          paymentData = await pagbankService.getOrderStatus(resourceId);
+        } else if (resourceId.startsWith('CHAR_') || notificationType.includes('CHARGE')) {
+          paymentData = await pagbankService.getChargeStatus(resourceId);
+        } else {
+          try {
+            paymentData = await pagbankService.getChargeStatus(resourceId);
+          } catch (error) {
+            paymentData = await pagbankService.getOrderStatus(resourceId);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching payment details from PagBank:', error);
+        return res.status(200).json({ 
+          success: true,
+          message: 'Notification received but failed to fetch details' 
+        });
+      }
+      
+      if (!paymentData || !paymentData.reference_id) {
+        console.error('Payment data does not contain reference_id:', JSON.stringify(paymentData));
+        return res.status(200).json({ 
+          success: true,
+          message: 'Notification received but reference_id not found' 
+        });
+      }
+      
+      const referenceId = paymentData.reference_id;
+      const status = paymentData.status;
+      
+      await Payment.updateStatus(referenceId, status);
+      console.log(`Payment ${referenceId} updated to status ${status}`);
+
+      const payment = await Payment.getByReferenceId(referenceId);
+      
+      if (payment) {
+        const paymentForNotification = {
+          referenceId: payment.reference_id,
+          transactionId: payment.pagbank_id,
+          amount: payment.amount,
+          description: payment.description,
+          customerUserId: payment.customer_user_id,
+          paymentMethod: payment.payment_method,
+          updatedAt: new Date().toISOString()
+        };
+        
+        notificationService.sendStatusUpdate(referenceId, status, paymentForNotification)
+          .catch(err => console.error('Error sending client notification:', err.message));
+      }
+      
+      return res.status(200).json({ 
+        success: true,
+        message: 'Payment status updated successfully'
+      });
+    } catch (error) {
+      console.error('Error processing PagBank notification:', error);
+      return res.status(200).json({ 
+        success: true,
+        message: 'Notification received but error during processing'
+      });
+    }
+  }
+  
+  async getPaymentByTransactionId(req, res) {
+    try {
+      const { transactionId } = req.params;
+      
+      if (!transactionId) {
+        return res.status(400).json({ 
+          error: 'Missing transaction ID',
+          message: 'Transaction ID is required'
+        });
+      }
+      
+      const payment = await Payment.getByPagbankId(transactionId);
+      
+      if (!payment) {
+        return res.status(404).json({ 
+          error: 'Transaction not found',
+          message: `No payment found with transaction ID: ${transactionId}`
+        });
+      }
+      
+      if (payment.pagbank_id) {
+        try {
+          let pagbankStatus;
+          
+          if (payment.payment_method === 'PIX') {
+            pagbankStatus = await pagbankService.getOrderStatus(payment.pagbank_id);
+          } else {
+            pagbankStatus = await pagbankService.getChargeStatus(payment.pagbank_id);
+          }
+          
+          if (pagbankStatus && pagbankStatus.status !== payment.status) {
+            await Payment.updateStatus(payment.reference_id, pagbankStatus.status);
+            payment.status = pagbankStatus.status;
+          }
+        } catch (error) {
+          console.warn(`Failed to get updated status from PagBank: ${error.message}`);
+        }
+      }
+      
+      const statusMessage = mapStatusMessage(payment.status);
+      
+      res.json({
+        success: true,
+        payment: {
+          referenceId: payment.reference_id,
+          transactionId: payment.pagbank_id,
+          amount: payment.amount,
+          description: payment.description,
+          status: payment.status,
+          statusMessage,
+          customerName: payment.customer_name,
+          customerEmail: payment.customer_email,
+          customerDocument: payment.customer_document,
+          customerUserId: payment.customer_user_id,
+          paymentMethod: payment.payment_method,
+          paymentUrl: payment.payment_url,
+          createdAt: payment.created_at,
+          updatedAt: payment.updated_at
+        }
+      });
+    } catch (error) {
+      console.error('Error getting payment by transaction ID:', error);
+      res.status(500).json({ 
+        error: 'Failed to retrieve payment information',
+        message: error.message
+      });
     }
   }
 }

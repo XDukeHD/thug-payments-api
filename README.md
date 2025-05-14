@@ -35,7 +35,13 @@ For detailed documentation on API endpoints, request/response formats, and integ
 
 ## License
 
-ISC License - See LICENSE file for details
+MIT License. See the [LICENSE](LICENSE) file for details.
+
+## Contributing
+Contributions are welcome! Please fork the repository and submit a pull request with your changes. Ensure that your code adheres to the project's coding standards and includes appropriate tests.
+
+## Support
+For support, please open an issue on the GitHub repository or contact the author directly.
 
 ## Author
 
