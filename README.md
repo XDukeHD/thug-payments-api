@@ -1,3 +1,6 @@
+> ⚠️ **Warning**: Thug-main branch is where the system fetches updates when recent changes are made. Unlike the official branch, this one includes additional tools and handles different situations. It features a stable connection to the Thug database for checking user plans, expiration dates, and more. This system can be used by others as long as it is adapted to their primary system or environment. However, we do not provide support for any code based on the thug-main branch — support is only available for the official branch. Other branches are also not eligible for my assistance.
+
+
 # Thug Payments API
 
 A secure and efficient payment processing API built on top of PagBank's payment infrastructure.
