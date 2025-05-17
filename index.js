@@ -6,6 +6,7 @@ const config = require('./config.json');
 const paymentRoutes = require('./src/routes/paymentRoutes');
 const path = require('path');
 const fs = require('fs');
+const rmtDb = require('./src/models/remote-database');
 
 const dbDir = path.dirname(config.database.path);
 if (!fs.existsSync(dbDir)) {
@@ -34,8 +35,18 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || config.server.port;
-app.listen(PORT, () => {
-  console.log(`Payment API server running on port ${PORT}`);
-});
+
+rmtDb.init()
+  .then(() => {
+    console.log('Conexão com banco de dados remoto estabelecida com sucesso');
+    
+    app.listen(PORT, () => {
+      console.log(`Payment API server running on port ${PORT}`);
+    });
+  })
+  .catch(err => {
+    console.error('Falha ao conectar com banco de dados remoto:', err);
+    process.exit(1);
+  });
 
 module.exports = app;
