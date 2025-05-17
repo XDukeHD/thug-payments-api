@@ -187,9 +187,6 @@ class Database {
     });
   }
   
-  /**
-   * Busca um pagamento pelo ID do PagBank
-   */
   async getPaymentByPagbankId(pagbankId) {
     const sql = `SELECT * FROM payments WHERE pagbank_id = ? LIMIT 1`;
     

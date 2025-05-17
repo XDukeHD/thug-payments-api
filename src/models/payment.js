@@ -2,9 +2,6 @@ const { v4: uuidv4 } = require('uuid');
 const db = require('./database');
 
 class Payment {
-  /**
-   * Cria um novo registro de pagamento
-   */
   static async create({ amount, description, customerName, customerEmail, customerDocument, customerUserId, paymentMethod, status }) {
     const referenceId = uuidv4();
     
@@ -30,9 +27,6 @@ class Payment {
     };
   }
   
-  /**
-   * Atualiza o status de um pagamento
-   */
   static async updateStatus(referenceId, status, paymentUrl = null, pagbankId = null) {
     const updates = {
       status: status || 'PENDING',
@@ -50,37 +44,22 @@ class Payment {
     await db.updatePaymentByReferenceId(referenceId, updates);
   }
   
-  /**
-   * Busca um pagamento pelo ID de referência
-   */
   static async getByReferenceId(referenceId) {
     return await db.getPaymentByReferenceId(referenceId);
   }
   
-  /**
-   * Busca pagamentos pelo ID do usuário
-   */
   static async getByUserId(userId, limit = 100, offset = 0) {
     return await db.getPaymentsByUserId(userId, limit, offset);
   }
   
-  /**
-   * Busca todos os pagamentos
-   */
   static async getAll(limit = 100, offset = 0) {
     return await db.getAllPayments(limit, offset);
   }
   
-  /**
-   * Busca pagamentos por status
-   */
   static async getByStatus(status, limit = 100, offset = 0) {
     return await db.getPaymentsByStatus(status, limit, offset);
   }
   
-  /**
-   * Busca pagamento pelo ID do PagBank
-   */
   static async getByPagbankId(pagbankId) {
     return await db.getPaymentByPagbankId(pagbankId);
   }

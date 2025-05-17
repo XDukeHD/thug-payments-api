@@ -140,29 +140,38 @@ class PagBankService {
     return {
       reference_id: data.referenceId,
       customer: {
-        name: data.customerName,
-        email: data.customerEmail,
-        tax_id: data.customerDocument
-      },
-      metadata: {
-        customer_user_id: data.customerUserId
+        name: data.customerName || "Cliente",
+        email: data.customerEmail || "cliente@exemplo.com",
+        tax_id: data.customerDocument || "12345678909"
       },
       items: [
         {
+          reference_id: `item-${data.referenceId}`,
           name: data.description || "Payment",
           quantity: 1,
           unit_amount: parseInt((data.amount * 100).toFixed(0))
         }
       ],
-      payment_methods: {
-        enabled_types: data.enabledTypes || ["CREDIT_CARD", "DEBIT_CARD", "BOLETO", "PIX"],
-        default_type: data.defaultType || "CREDIT_CARD"
-      },
-      expires_at: data.expiresAt || this._getDefaultExpirationDate(),
       notification_urls: [
         data.notificationUrl || this.notificationUrl
       ],
-      redirect_url: data.redirectUrl || config.webhook.redirectUrl
+      charges: [
+        {
+          reference_id: `charge-${data.referenceId}`,
+          description: data.description || "Payment charge",
+          amount: {
+            value: parseInt((data.amount * 100).toFixed(0)),
+            currency: "BRL"
+          },
+          payment_method: {
+            type: "CREDIT_CARD",
+            installments: 1,
+            capture: true
+          }
+        }
+      ],
+      redirect_url: data.redirectUrl || config.webhook.redirectUrl,
+      expires_at: data.expiresAt || this._getDefaultExpirationDate()
     };
   }
   

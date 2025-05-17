@@ -1,6 +1,7 @@
 const Payment = require('../models/payment');
 const pagbankService = require('../services/pagbank');
 const notificationService = require('../services/notificationService');
+const config = require('../../config.json');
 
 class PaymentController {
   async createCreditCardPayment(req, res) {
@@ -211,11 +212,32 @@ class PaymentController {
       const pagbankResponse = await pagbankService.createCheckout(paymentData);
       
       let checkoutUrl = null;
+      
+      console.log('PagBank Checkout Response:', JSON.stringify(pagbankResponse, null, 2));
+      
       if (pagbankResponse.links) {
-        const checkoutLink = pagbankResponse.links.find(link => link.rel === 'PAY' || link.rel === 'CHECKOUT_URL');
+        const checkoutLink = pagbankResponse.links.find(link => 
+          link.rel === 'PAY' || 
+          link.rel === 'CHECKOUT_URL' || 
+          link.rel === 'PAYMENT_URL' || 
+          link.href.includes('/checkout/') || 
+          link.href.includes('/payment/')
+        );
+        
         if (checkoutLink) {
           checkoutUrl = checkoutLink.href;
+        } else {
+          checkoutUrl = pagbankResponse.links[0]?.href;
         }
+      } else if (pagbankResponse.payment_url || pagbankResponse.checkoutUrl) {
+        checkoutUrl = pagbankResponse.payment_url || pagbankResponse.checkoutUrl;
+      }
+      
+      if (!checkoutUrl && pagbankResponse.id) {
+        const baseUrl = config.pagbank.environment === 'sandbox' 
+          ? 'https://sandbox.pagseguro.uol.com.br/checkout/' 
+          : 'https://pagseguro.uol.com.br/checkout/';
+        checkoutUrl = baseUrl + pagbankResponse.id;
       }
       
       await Payment.updateStatus(
@@ -531,7 +553,7 @@ class PaymentController {
       if (!payment) {
         return res.status(404).json({ 
           error: 'Transaction not found',
-          message: `No payment found with transaction ID: ${transactionId}`
+          message: `No payment found with transaction ID: ${transactionId}` 
         });
       }
       
